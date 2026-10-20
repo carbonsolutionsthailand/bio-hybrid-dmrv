@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Hybrid dMRV Data Stream & Analytics Dashboard</title>
+
+    <!-- External Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Custom Tailwind Theme Configuration
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#081D17',
+                            deep: '#0F382C',
+                            primary: '#10B981',
+                            accent: '#00E5FF',
+                            mint: '#A7F3D0',
+                            warn: '#F59E0B',
+                            danger: '#EF4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Sarabun', 'Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js for Telemetry & Analytics Data Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Lucide Icon Library -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sarabun:wght@300;400;600;700;800&display=swap');
+        
+        /* Global Base Styling */
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #06130F;
+            color: #ECFDF5;
+        }
+
+        /* Glassmorphism UI Components */
+        .glass-panel {
+            background: rgba(15, 56, 44, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .glass-panel-glow {
+            background: rgba(15, 56, 44, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 229, 255, 0.35);
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.12);
+        }
+
+        /* Live Indicator Animations */
+        .pulse-live {
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .pulse-alert {
+            animation: pulse-danger 1.2s infinite;
+        }
+
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* Customized Dark Theme Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #081D17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #10B98133;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #10B98188;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden text-slate-100">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-emerald-500/20 px-4 py-3 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Company Brand & System Name -->
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center">
+                    <i data-lucide="cpu" class="w-7 h-7 text-emerald-400"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs uppercase tracking-widest font-bold text-emerald-400">Carbon Solution (Thailand) Co., Ltd.</span>
+                        <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">dMRV Engine v2.0.0</span>
+                    </div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                        Bio-Hybrid dMRV Platform <span class="text-xs font-normal text-slate-400 hidden md:inline">| Real-time Telemetry & Analytics</span>
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Telemetry Stream Status Indicator & Action Controls -->
+            <div class="flex items-center flex-wrap gap-2">
+                <div class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-emerald-500/30">
+                    <span class="relative flex h-3 w-3">
+                        <span id="live-dot-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span id="live-dot" class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span id="stream-status-text" class="text-xs font-bold text-emerald-400 uppercase tracking-wide">STREAM ACTIVE</span>
+                    <span class="text-slate-500 text-xs">|</span>
+                    <span id="packet-counter" class="text-xs font-mono text-cyan-300">Packets: 142</span>
+                </div>
+
+                <!-- Data Stream Pause/Resume Toggle Button -->
+                <button id="btn-toggle-stream" onclick="toggleStream()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-md">
+                    <i data-lucide="pause" id="btn-icon-pause" class="w-4 h-4"></i>
+                    <span id="btn-text-pause">พักระบบส่งข้อมูล</span>
+                </button>
+
+                <!-- Interactive Scenario Selector for Demonstrations -->
+                <div class="relative inline-block text-left">
+                    <select id="scenario-selector" onchange="applyScenario(this.value)" class="bg-slate-900 border border-cyan-500/40 text-cyan-300 text-xs rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-cyan-400 focus:outline-none cursor-pointer">
+                        <option value="normal">🌐 โหมดปกติ: AWD Safe Period</option>
+                        <option value="awd_dry_warning">⚠️ โหมดสาธิต: เตือนน้ำแห้งจัด (AWD Warning &lt; -10 cm)</option>
+                        <option value="soc_spike">🌱 โหมดสาธิต: ตรวจพบ SOC สูงขึ้น (Soil Probe)</option>
+                        <option value="stubble_burning">🔥 โหมดสาธิต: เปรียบเทียบผลกระทบการเผาตอซัง</option>
+                    </select>
+                </div>
+
+                <!-- Cryptographic Audit Log Toggle -->
+                <button onclick="toggleAuditDrawer()" class="bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 text-xs font-medium px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i>
+                    <span class="hidden sm:inline">SHA-256 Audit Log</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT DASHBOARD GRID -->
+    <main class="max-w-7xl mx-auto px-4 py-4 w-full flex-1 space-y-4">
+
+        <!-- PIPELINE STEPPER BAR (End-to-End dMRV Pipeline) -->
+        <section class="glass-panel rounded-2xl p-4 border border-emerald-500/20">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+                
+                <!-- Step 1: Field Hardware -->
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/40 shrink-0">1</div>
+                    <div>
+                        <div class="font-bold text-emerald-300">Field Hardware IoT</div>
+                        <div class="text-slate-400 text-[11px]">Soil Probe + Flux + Water Sensor</div>
+                    </div>
+                </div>
+                <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-500 hidden md:block"></i>
+                
+                <!-- Step 2: Telemetry Stream -->
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <div class="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold border border-cyan-500/40 shrink-0">2</div>
+                    <div>
+                        <div class="font-bold text-cyan-300">LoRaWAN / 4G Telemetry</div>
+                        <div class="text-slate-400 text-[11px]">Cryptographic SHA-256 Sync</div>
+                    </div>
+                </div>
+                <i data-lucide="arrow-right" class="w-4 h-4 text-cyan-500 hidden md:block"></i>
+
+                <!-- Step 3: dMRV Analytics Engine -->
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/40 shrink-0">3</div>
+                    <div>
+                        <div class="font-bold text-emerald-300">Bio-Hybrid dMRV Engine</div>
+                        <div class="text-slate-400 text-[11px]">Tier 3 Carbon & AWD Quantification</div>
+                    </div>
+                </div>
+                <i data-lucide="arrow-right" class="w-4 h-4 text-emerald-500 hidden md:block"></i>
+
+                <!-- Step 4: Carbon Registry Yield -->
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <div class="w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-400 flex items-center justify-center font-bold border border-yellow-500/40 shrink-0">4</div>
+                    <div>
+                        <div class="font-bold text-yellow-300">Carbon Credit & T-VER</div>
+                        <div class="text-slate-400 text-[11px]">Verified Registry & Value Yield</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- KPI HERO CARDS (4 METRICS) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- Metric Card 1: AWD Water Level -->
+            <div id="card-water-level" class="glass-panel rounded-2xl p-4 relative overflow-hidden transition-all duration-300">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="waves" class="w-4 h-4 text-cyan-400"></i> ระดับน้ำในแปลงนา (AWD)
+                    </span>
+                    <span id="badge-awd-status" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        ช่วงแห้งปลอดภัย
+                    </span>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="val-water-level" class="text-3xl font-extrabold text-white font-mono">-5.0</span>
+                    <span class="text-slate-400 text-sm font-medium">ซม. (cm)</span>
+                </div>
+                <div class="mt-3 bg-slate-900/80 rounded-lg p-2 text-[11px] text-slate-300 flex items-center justify-between border border-slate-800">
+                    <span>เกณฑ์ AWD ปลอดภัย:</span>
+                    <span class="font-mono text-cyan-300">-10 ซม. ถึง +5 ซม.</span>
+                </div>
+                <div class="mt-2 w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
+                    <div id="bar-water-level" class="bg-cyan-400 h-full transition-all duration-500" style="width: 50%;"></div>
+                </div>
+            </div>
+
+            <!-- Metric Card 2: Soil Organic Carbon (SOC) -->
+            <div class="glass-panel rounded-2xl p-4 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="sprout" class="w-4 h-4 text-emerald-400"></i> อินทรียวัตถุในดิน (SOC)
+                    </span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        SOC Probe 60cm
+                    </span>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="val-soc-percent" class="text-3xl font-extrabold text-white font-mono">2.45</span>
+                    <span class="text-slate-400 text-sm font-medium">% Organic C</span>
+                </div>
+                <div class="mt-3 bg-slate-900/80 rounded-lg p-2 text-[11px] text-slate-300 flex items-center justify-between border border-slate-800">
+                    <span>เทียบเท่าคาร์บอนในดิน:</span>
+                    <span id="val-soc-tco2e" class="font-mono text-emerald-400">4.82 tCO₂e/ไร่</span>
+                </div>
+                <div class="mt-2 w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
+                    <div id="bar-soc-level" class="bg-emerald-400 h-full transition-all duration-500" style="width: 65%;"></div>
+                </div>
+            </div>
+
+            <!-- Metric Card 3: GHG Avoided Emissions -->
+            <div class="glass-panel rounded-2xl p-4 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="cloud-off" class="w-4 h-4 text-emerald-300"></i> ลดการปล่อยก๊าซเรือนกระจก
+                    </span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        -48.0% CH₄
+                    </span>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="val-avoided-ghg" class="text-3xl font-extrabold text-emerald-400 font-mono">1.68</span>
+                    <span class="text-slate-400 text-sm font-medium">tCO₂e / แปลง</span>
+                </div>
+                <div class="mt-3 bg-slate-900/80 rounded-lg p-2 text-[11px] text-slate-300 flex items-center justify-between border border-slate-800">
+                    <span>เทียบเบสไลน์นาขัง:</span>
+                    <span class="font-mono text-emerald-300">ลดลง 168 kgCO₂e/ไร่</span>
+                </div>
+                <div class="mt-2 w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
+                    <div class="bg-emerald-400 h-full" style="width: 78%;"></div>
+                </div>
+            </div>
+
+            <!-- Metric Card 4: Estimated Carbon Credits -->
+            <div class="glass-panel-glow rounded-2xl p-4 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                        <i data-lucide="coins" class="w-4 h-4 text-yellow-400"></i> คาร์บอนเครดิตประเมินได้
+                    </span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                        Tier 3 Verified
+                    </span>
+                </div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="val-carbon-credit-ton" class="text-3xl font-extrabold text-yellow-400 font-mono">25.20</span>
+                    <span class="text-slate-400 text-sm font-medium">tCO₂e</span>
+                </div>
+                <div class="mt-3 bg-slate-900/90 rounded-lg p-2 text-[11px] text-slate-300 flex items-center justify-between border border-cyan-500/30">
+                    <span>มูลค่าประเมิน (350 บ./ตัน):</span>
+                    <span id="val-credit-baht" class="font-mono text-yellow-300 font-bold">฿8,820.00</span>
+                </div>
+                <div class="mt-2 text-[10px] text-cyan-300/80 flex items-center justify-between">
+                    <span>พื้นที่แปลงนาสาธิต: 15 ไร่</span>
+                    <span class="underline cursor-pointer" onclick="openReportModal()">ดูรายงาน T-VER</span>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- MIDDLE SECTION: TELEMETRY SENSOR NODES & REAL-TIME CHARTS -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            
+            <!-- Hardware Sensor Status Panel (Left Column) -->
+            <div class="glass-panel rounded-2xl p-4 space-y-3 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between pb-2 border-b border-emerald-500/20 mb-3">
+                        <h3 class="text-sm font-bold text-emerald-300 uppercase tracking-wide flex items-center gap-2">
+                            <i data-lucide="hard-drive" class="w-4 h-4 text-emerald-400"></i> สถานะฮาร์ดแวร์ภาคสนาม
+                        </h3>
+                        <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">LoRa Direct</span>
+                    </div>
+
+                    <!-- Sensor Node 1: Soil Organic Carbon (SOC) Probe -->
+                    <div class="p-3 bg-slate-900/70 rounded-xl border border-emerald-500/30 space-y-1.5 hover:border-emerald-400/60 transition-all">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <i data-lucide="pointer" class="w-3.5 h-3.5 text-emerald-400"></i> 1. Soil SOC Probe (100cm)
+                            </span>
+                            <span class="text-[10px] text-emerald-400 font-mono">SN: SOC-8821</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 text-[11px] pt-1">
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">SOC %</div>
+                                <div id="node-soc-val" class="font-mono font-bold text-emerald-300">2.45 %</div>
+                            </div>
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">ความชื้นดิน</div>
+                                <div id="node-soil-moist" class="font-mono font-bold text-cyan-300">38.2 %</div>
+                            </div>
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">อุณหภูมิดิน</div>
+                                <div id="node-soil-temp" class="font-mono font-bold text-slate-200">28.4 °C</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor Node 2: Carbon Flux Chamber -->
+                    <div class="p-3 bg-slate-900/70 rounded-xl border border-emerald-500/30 space-y-1.5 hover:border-emerald-400/60 transition-all mt-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <i data-lucide="cylinder" class="w-3.5 h-3.5 text-cyan-400"></i> 2. Carbon Flux Chamber
+                            </span>
+                            <span class="text-[10px] text-cyan-400 font-mono">SN: FLX-4019</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 text-[11px] pt-1">
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">CO₂ NDIR</div>
+                                <div id="node-co2-ppm" class="font-mono font-bold text-cyan-300">420 ppm</div>
+                            </div>
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">CH₄ GHG</div>
+                                <div id="node-ch4-ppm" class="font-mono font-bold text-emerald-300">12.4 ppm</div>
+                            </div>
+                            <div class="bg-slate-950 p-1.5 rounded text-center">
+                                <div class="text-slate-400 text-[9px]">แบตเตอรี่ Solar</div>
+                                <div class="font-mono font-bold text-emerald-400">98% ☀️</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sensor Node 3: Smart Water Level Sensor -->
+                    <div class="p-3 bg-slate-900/70 rounded-xl border border-emerald-500/30 space-y-1.5 hover:border-emerald-400/60 transition-all mt-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <i data-lucide="gauge" class="w-3.5 h-3.5 text-blue-400"></i> 3. Smart Water Level Sensor
+                            </span>
+                            <span class="text-[10px] text-blue-400 font-mono">SN: WTR-9112</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                            <div class="bg-slate-950 p-1.5 rounded flex justify-between items-center">
+                                <span class="text-slate-400 text-[10px]">ระดับน้ำจริง:</span>
+                                <span id="node-water-cm" class="font-mono font-bold text-cyan-300">-5.0 ซม.</span>
+                            </div>
+                            <div class="bg-slate-950 p-1.5 rounded flex justify-between items-center">
+                                <span class="text-slate-400 text-[10px]">สถานะ IP68:</span>
+                                <span class="font-mono font-bold text-emerald-400">ปกติ (Online)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Cryptographic Hash Verification Block -->
+                <div class="p-2.5 bg-slate-950 rounded-xl border border-cyan-500/30 text-[10px] font-mono space-y-1">
+                    <div class="flex justify-between text-slate-400">
+                        <span>🔒 Cryptographic Telemetry Hash:</span>
+                        <span class="text-cyan-400">Audit Ready</span>
+                    </div>
+                    <div id="live-sha256-hash" class="text-emerald-400 truncate tracking-tight select-all">
+                        8f1d3c9071a41b250280459c3e211a7f66a818274092b8c9d0124e5a019b882f
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Data Stream Charts (Right Column) -->
+            <div class="lg:col-span-2 space-y-4">
+                
+                <!-- Chart 1: Real-time Water Level & GHG Flux Stream -->
+                <div class="glass-panel rounded-2xl p-4 border border-emerald-500/20">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i data-lucide="line-chart" class="w-4 h-4 text-emerald-400"></i> สตรีมข้อมูลเรียลไทม์ (Live Telemetry Stream)
+                            </h3>
+                            <p class="text-[11px] text-slate-400">กราฟเปรียบเทียบระดับน้ำในแปลงนา (AWD Water Level) และอัตราการปลดปล่อย CH₄</p>
+                        </div>
+                        <div class="flex items-center space-x-2 text-[11px]">
+                            <span class="flex items-center gap-1 text-cyan-300"><span class="w-2.5 h-2.5 bg-cyan-400 rounded-full inline-block"></span> ระดับน้ำ (ซม.)</span>
+                            <span class="flex items-center gap-1 text-emerald-400"><span class="w-2.5 h-2.5 bg-emerald-400 rounded-full inline-block"></span> CH₄ (ppm)</span>
+                        </div>
+                    </div>
+                    <div class="h-56 relative w-full">
+                        <canvas id="liveTelemetryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Cumulative Carbon Sequestration vs Baseline -->
+                <div class="glass-panel rounded-2xl p-4 border border-emerald-500/20">
+                    <div class="flex items-center justify-between mb-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i> การประมวลผลคาร์บอนเครดิต Tier 3 (Baseline vs Bio-Hybrid)
+                            </h3>
+                            <p class="text-[11px] text-slate-400">การกักเก็บคาร์บอนและการลดการปล่อยก๊าซเรือนกระจกสะสมในรอบฤดูกาล</p>
+                        </div>
+                        <div class="bg-slate-900 px-2.5 py-1 rounded text-[11px] text-emerald-300 border border-emerald-500/30">
+                            T-VER Methodology Compliant
+                        </div>
+                    </div>
+                    <div class="h-44 relative w-full">
+                        <canvas id="carbonImpactChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- BOTTOM CONTROLS & ACADEMIC COOPERATION BANNER -->
+        <section class="glass-panel rounded-2xl p-4 border border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/30 text-cyan-400">
+                    <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold text-white">โครงการจัดตั้ง Sandbox วิจัยร่วม มทร.วิทยาเขตร้อยเอ็ด</h4>
+                    <p class="text-xs text-slate-300">แปลงสาธิตการตรวจวัดคาร์บอนเครดิตภาคเกษตร (dMRV Research Sandbox) ในพื้นที่ทุ่งกุลาร้องไห้</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-end">
+                <button onclick="triggerAWDWaterAlert()" class="bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 border border-amber-500/40 text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1.5">
+                    <i data-lucide="bell" class="w-4 h-4"></i>
+                    <span>ทดสอบการแจ้งเตือนน้ำแห้ง</span>
+                </button>
+                <button onclick="openReportModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-lg flex items-center gap-1.5">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    <span>ออกรายงาน Audit Report</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- AUDIT DRAWER (SHA-256 LOGS) -->
+    <div id="audit-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-slate-950 border-l border-emerald-500/30 shadow-2xl transform translate-x-full transition-transform duration-300 z-50 p-5 overflow-y-auto hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="shield" class="w-5 h-5 text-emerald-400"></i> Cryptographic Audit Log
+            </h3>
+            <button onclick="toggleAuditDrawer()" class="text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="mt-4 space-y-3">
+            <p class="text-xs text-slate-400">บันทึกบล็อกข้อมูลทางเทคนิคที่ผ่านการเข้ารหัส SHA-256 แบบไม่สามารถเปลี่ยนแปลงได้ เพื่อการทวนสอบคาร์บอนเครดิต:</p>
+            
+            <div id="audit-log-container" class="space-y-2 font-mono text-[11px]">
+                <!-- Dynamic Log Entries Inserted Here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- AWD WARNING ALERT MODAL -->
+    <div id="awd-alert-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border-2 border-red-500/80 rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-4 pulse-alert">
+            <div class="w-14 h-14 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-500/50">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-white">แจ้งเตือนระบบ AWD: ระดับน้ำต่ำกว่าเกณฑ์!</h3>
+                <p class="text-xs text-slate-300 mt-1">Smart Water Sensor ตรวจพบระดับน้ำในแปลงนาอยู่ที่ <span id="modal-water-val" class="text-red-400 font-bold font-mono">-12.5 ซม.</span> ซึ่งต่ำกว่าเกณฑ์ความปลอดภัย (-10 ซม.)</p>
+            </div>
+            <div class="p-3 bg-slate-950 rounded-xl text-left text-xs space-y-1 text-slate-300 border border-slate-800">
+                <div class="flex justify-between"><span>แปลงนา:</span><span class="font-bold text-white">BRM-FARM-001 (ทุ่งกุลาร้องไห้)</span></div>
+                <div class="flex justify-between"><span>ข้อแนะนำ:</span><span class="text-cyan-300 font-bold">เปิดน้ำเข้าแปลง (Reflood Cycle)</span></div>
+                <div class="flex justify-between"><span>ผลกระทบข้าว:</span><span class="text-emerald-400">อยู่ในเกณฑ์เริ่มส่งผลต่อผลผลิต</span></div>
+            </div>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeAWDModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-bold">รับทราบ</button>
+                <button onclick="closeAWDModal(); applyScenario('normal');" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-xs py-2.5 rounded-xl font-bold">จำลองการเติมน้ำเข้าแปลง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- T-VER AUDIT REPORT MODAL -->
+    <div id="report-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl p-6 max-w-2xl w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="file-check" class="w-6 h-6 text-emerald-400"></i>
+                    <div>
+                        <h3 class="text-base font-bold text-white">รายงานสรุปการทวนสอบคาร์บอนเครดิต (Tier 3 dMRV Report)</h3>
+                        <p class="text-xs text-slate-400">บริษัท คาร์บอนโซลูชั่น (ไทยแลนด์) จำกัด | มาตรฐาน T-VER & Gold Standard</p>
+                    </div>
+                </div>
+                <button onclick="closeReportModal()" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="p-3 bg-slate-950 rounded-xl space-y-1">
+                    <div class="text-slate-400">รหัสแปลงนา:</div>
+                    <div class="font-bold text-white font-mono">BRM-FARM-001 (15 ไร่)</div>
+                </div>
+                <div class="p-3 bg-slate-950 rounded-xl space-y-1">
+                    <div class="text-slate-400">พันธุ์ข้าว:</div>
+                    <div class="font-bold text-emerald-400">ข้าวหอมมะลิ 105 (ทุ่งกุลาร้องไห้)</div>
+                </div>
+                <div class="p-3 bg-slate-950 rounded-xl space-y-1">
+                    <div class="text-slate-400">การจัดการตอซัง:</div>
+                    <div class="font-bold text-cyan-300">ไถกลบตอซัง (ไม่เผา)</div>
+                </div>
+                <div class="p-3 bg-slate-950 rounded-xl space-y-1">
+                    <div class="text-slate-400">จำนวนวันที่ใช้ AWD:</div>
+                    <div class="font-bold text-yellow-400">22 วันในรอบฤดู</div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950 rounded-xl border border-emerald-500/30 space-y-2 text-xs">
+                <div class="font-bold text-emerald-300 border-b border-slate-800 pb-1">ผลสรุปการประมวลผล Bio-Hybrid dMRV Engine v2.0.0:</div>
+                <div class="flex justify-between text-slate-300">
+                    <span>การปลดปล่อยเบสไลน์ (Baseline Emissions):</span>
+                    <span class="font-mono">5.25 tCO₂e</span>
+                </div>
+                <div class="flex justify-between text-slate-300">
+                    <span>การปลดปล่อยจริง (Actual Bio-Hybrid Emissions):</span>
+                    <span class="font-mono text-cyan-300">2.73 tCO₂e</span>
+                </div>
+                <div class="flex justify-between font-bold text-white pt-1 border-t border-slate-800">
+                    <span>ปริมาณคาร์บอนเครดิตสุทธิ (Net Carbon Credits):</span>
+                    <span class="font-mono text-yellow-400 text-sm">25.20 tCO₂e</span>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closeReportModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded-xl font-bold">ปิด</button>
+                <button onclick="copyAuditHash()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-xl font-bold flex items-center gap-1.5">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                    <span>คัดลอก Hash ตรวจสอบ</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER BAR -->
+    <footer class="glass-panel border-t border-emerald-500/20 px-4 py-2 text-center text-xs text-slate-400">
+        <span>© 2026 บริษัท คาร์บอนโซลูชั่น (ไทยแลนด์) จำกัด — Bio-Hybrid dMRV Field Sensor Kit & Platform Demo</span>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC & TELEMETRY SIMULATION ENGINE -->
+    <script>
+        // System State Variables
+        let isStreaming = true;
+        let packetCount = 142;
+        let currentWaterLevel = -5.0; // centimeters
+        let currentSOC = 2.45;        // percentage
+        let currentCH4 = 12.4;        // ppm
+        let currentCo2 = 420;         // ppm
+        let auditLogs = [];
+
+        // Global Chart instances
+        let telemetryChart;
+        let carbonImpactChart;
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initCharts();
+            startDataStream();
+            generateAuditLog("INITIALIZE_NODE", "Sensor System Online - Bio-Hybrid Protocol Active");
+        });
+
+        /**
+         * Initializes Chart.js real-time line chart and carbon impact bar chart
+         */
+        function initCharts() {
+            // Chart 1: Real-time Live Telemetry Stream (Water Level vs CH4 GHG Emissions)
+            const ctx1 = document.getElementById('liveTelemetryChart').getContext('2d');
+            telemetryChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25', '10:30', '10:35', '10:40', '10:45'],
+                    datasets: [
+                        {
+                            label: 'ระดับน้ำ AWD (ซม.)',
+                            data: [3.2, 2.0, 0.5, -2.1, -4.0, -5.0, -5.2, -4.8, -5.0, -5.1],
+                            borderColor: '#00E5FF',
+                            backgroundColor: 'rgba(0, 229, 255, 0.1)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'yWater'
+                        },
+                        {
+                            label: 'CH₄ Emissions (ppm)',
+                            data: [38.5, 32.1, 24.0, 18.2, 14.0, 12.4, 11.8, 12.0, 12.4, 12.2],
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            tension: 0.4,
+                            yAxisID: 'yGHG'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 400 },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94A3B8', font: { size: 10 } }
+                        },
+                        yWater: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'ระดับน้ำ (cm)', color: '#00E5FF', font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#00E5FF', font: { size: 10 } },
+                            min: -15,
+                            max: 10
+                        },
+                        yGHG: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'CH₄ (ppm)', color: '#10B981', font: { size: 10 } },
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#10B981', font: { size: 10 } },
+                            min: 0,
+                            max: 60
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Chart 2: Cumulative Carbon Sequestration Impact
+            const ctx2 = document.getElementById('carbonImpactChart').getContext('2d');
+            carbonImpactChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['สัปดาห์ที่ 1', 'สัปดาห์ที่ 2', 'สัปดาห์ที่ 3', 'สัปดาห์ที่ 4', 'สัปดาห์ที่ 5 (ปัจจุบัน)'],
+                    datasets: [
+                        {
+                            label: 'การปล่อยคาร์บอนเบสไลน์ (นาขังตลอด)',
+                            data: [1.05, 2.10, 3.15, 4.20, 5.25],
+                            backgroundColor: 'rgba(239, 68, 68, 0.4)',
+                            borderColor: '#EF4444',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'การปล่อยคาร์บอนจริง (Bio-Hybrid AWD)',
+                            data: [0.55, 1.10, 1.65, 2.20, 2.73],
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: '#10B981',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94A3B8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94A3B8', font: { size: 10 } },
+                            title: { display: true, text: 'tCO₂e สะสม', color: '#94A3B8', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#E2E8F0', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        /**
+         * Simulates continuous telemetry packet reception every 2.5 seconds
+         */
+        function startDataStream() {
+            setInterval(() => {
+                if (!isStreaming) return;
+
+                packetCount++;
+                document.getElementById('packet-counter').innerText = `Packets: ${packetCount}`;
+
+                // Fluctuate telemetry values realistically
+                let deltaWater = (Math.random() - 0.5) * 0.2;
+                currentWaterLevel = Math.max(-14, Math.min(8, currentWaterLevel + deltaWater));
+
+                let deltaCH4 = (Math.random() - 0.5) * 0.4;
+                currentCH4 = Math.max(5, Math.min(50, currentCH4 + deltaCH4));
+
+                // Update UI text values
+                document.getElementById('val-water-level').innerText = currentWaterLevel.toFixed(1);
+                document.getElementById('node-water-cm').innerText = `${currentWaterLevel.toFixed(1)} ซม.`;
+                document.getElementById('node-ch4-ppm').innerText = `${currentCH4.toFixed(1)} ppm`;
+
+                // Update water level progress bar width
+                let waterBarPct = Math.max(5, Math.min(100, ((currentWaterLevel + 15) / 25) * 100));
+                document.getElementById('bar-water-level').style.width = `${waterBarPct}%`;
+
+                // Update Real-time Chart
+                let now = new Date();
+                let timeStr = `${now.getHours()}:${now.getMinutes() < 10 ? '0' : ''}${now.getMinutes()}:${now.getSeconds() < 10 ? '0' : ''}${now.getSeconds()}`;
+
+                telemetryChart.data.labels.shift();
+                telemetryChart.data.labels.push(timeStr);
+                telemetryChart.data.datasets[0].data.shift();
+                telemetryChart.data.datasets[0].data.push(currentWaterLevel.toFixed(1));
+                telemetryChart.data.datasets[1].data.shift();
+                telemetryChart.data.datasets[1].data.push(currentCH4.toFixed(1));
+                telemetryChart.update('none');
+
+                // Generate and update simulated SHA-256 telemetry hash
+                let hashStr = generateFakeHash(`BRM-FARM-001|WTR:${currentWaterLevel.toFixed(2)}|SOC:${currentSOC}|PACKET:${packetCount}`);
+                document.getElementById('live-sha256-hash').innerText = hashStr;
+
+                // Auto-trigger alert if water level dips below safety threshold (-10 cm)
+                if (currentWaterLevel < -10.0 && !document.getElementById('awd-alert-modal').classList.contains('flex')) {
+                    triggerAWDWaterAlert();
+                }
+
+            }, 2500);
+        }
+
+        /**
+         * Generates a 256-bit cryptographic hash representation for data integrity verification
+         */
+        function generateFakeHash(seed) {
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) {
+                hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+                hash |= 0;
+            }
+            let hex = Math.abs(hash).toString(16).padStart(8, '0');
+            return `${hex}a892f3c1782b990142e0514d023b8910e4a77b${hex}`;
+        }
+
+        /**
+         * Toggles data streaming state between active and paused
+         */
+        function toggleStream() {
+            isStreaming = !isStreaming;
+            const textEl = document.getElementById('btn-text-pause');
+            const iconEl = document.getElementById('btn-icon-pause');
+            const statusText = document.getElementById('stream-status-text');
+            const dotPing = document.getElementById('live-dot-ping');
+
+            if (isStreaming) {
+                textEl.innerText = "พักระบบส่งข้อมูล";
+                iconEl.setAttribute('data-lucide', 'pause');
+                statusText.innerText = "STREAM ACTIVE";
+                statusText.className = "text-xs font-bold text-emerald-400 uppercase tracking-wide";
+                dotPing.classList.add('animate-ping');
+            } else {
+                textEl.innerText = "เริ่มส่งข้อมูลต่อ";
+                iconEl.setAttribute('data-lucide', 'play');
+                statusText.innerText = "PAUSED";
+                statusText.className = "text-xs font-bold text-amber-400 uppercase tracking-wide";
+                dotPing.classList.remove('animate-ping');
+            }
+            lucide.createIcons();
+        }
+
+        /**
+         * Applies pre-configured scenarios for booth demonstrations
+         */
+        function applyScenario(scenario) {
+            if (scenario === 'awd_dry_warning') {
+                currentWaterLevel = -12.5;
+                currentCH4 = 8.2;
+                document.getElementById('val-water-level').innerText = "-12.5";
+                document.getElementById('card-water-level').classList.add('border-red-500', 'pulse-alert');
+                document.getElementById('badge-awd-status').innerText = "เตือน: น้ำแห้งเกินเกณฑ์";
+                document.getElementById('badge-awd-status').className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30";
+                triggerAWDWaterAlert();
+            } else if (scenario === 'soc_spike') {
+                currentSOC = 3.20;
+                document.getElementById('val-soc-percent').innerText = "3.20";
+                document.getElementById('node-soc-val').innerText = "3.20 %";
+                document.getElementById('val-soc-tco2e').innerText = "6.12 tCO₂e/ไร่";
+                document.getElementById('bar-soc-level').style.width = "85%";
+                generateAuditLog("SOC_SPIKE_DETECTED", "Soil SOC Probe registered high organic carbon (+3.20%)");
+            } else if (scenario === 'stubble_burning') {
+                document.getElementById('val-avoided-ghg').innerText = "0.20";
+                document.getElementById('val-carbon-credit-ton').innerText = "3.50";
+                document.getElementById('val-credit-baht').innerText = "฿1,225.00";
+                generateAuditLog("WARNING_STUBBLE_BURN", "Stubble burning detected: Carbon credits penalized");
+            } else { // Normal AWD Mode
+                currentWaterLevel = -5.0;
+                currentSOC = 2.45;
+                currentCH4 = 12.4;
+                document.getElementById('val-water-level').innerText = "-5.0";
+                document.getElementById('val-soc-percent').innerText = "2.45";
+                document.getElementById('node-soc-val').innerText = "2.45 %";
+                document.getElementById('val-soc-tco2e').innerText = "4.82 tCO₂e/ไร่";
+                document.getElementById('val-avoided-ghg').innerText = "1.68";
+                document.getElementById('val-carbon-credit-ton').innerText = "25.20";
+                document.getElementById('val-credit-baht').innerText = "฿8,820.00";
+                document.getElementById('card-water-level').classList.remove('border-red-500', 'pulse-alert');
+                document.getElementById('badge-awd-status').innerText = "ช่วงแห้งปลอดภัย";
+                document.getElementById('badge-awd-status').className = "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+            }
+        }
+
+        /**
+         * Triggers AWD Water Warning Alert Modal
+         */
+        function triggerAWDWaterAlert() {
+            document.getElementById('modal-water-val').innerText = `${currentWaterLevel.toFixed(1)} ซม.`;
+            document.getElementById('awd-alert-modal').classList.remove('hidden');
+            document.getElementById('awd-alert-modal').classList.add('flex');
+            generateAuditLog("AWD_ALERT_TRIGGER", `Water level below threshold: ${currentWaterLevel.toFixed(1)} cm`);
+        }
+
+        function closeAWDModal() {
+            document.getElementById('awd-alert-modal').classList.add('hidden');
+            document.getElementById('awd-alert-modal').classList.remove('flex');
+        }
+
+        function openReportModal() {
+            document.getElementById('report-modal').classList.remove('hidden');
+            document.getElementById('report-modal').classList.add('flex');
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+            document.getElementById('report-modal').classList.remove('flex');
+        }
+
+        /**
+         * Toggles sliding Cryptographic Audit Log Drawer
+         */
+        function toggleAuditDrawer() {
+            const drawer = document.getElementById('audit-drawer');
+            if (drawer.classList.contains('hidden')) {
+                drawer.classList.remove('hidden');
+                setTimeout(() => drawer.classList.remove('translate-x-full'), 10);
+            } else {
+                drawer.classList.add('translate-x-full');
+                setTimeout(() => drawer.classList.add('hidden'), 300);
+            }
+        }
+
+        /**
+         * Appends new cryptographic action log to the audit drawer container
+         */
+        function generateAuditLog(action, details) {
+            const container = document.getElementById('audit-log-container');
+            const now = new Date();
+            const timeStr = `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+            const hash = generateFakeHash(action + timeStr);
+
+            const item = document.createElement('div');
+            item.className = "p-2 bg-slate-900 rounded border border-emerald-500/20 text-slate-300 space-y-0.5";
+            item.innerHTML = `
+                <div class="flex justify-between text-[10px]">
+                    <span class="text-cyan-400 font-bold">${action}</span>
+                    <span class="text-slate-500">${timeStr}</span>
+                </div>
+                <div class="text-[10px] text-slate-300">${details}</div>
+                <div class="text-[9px] text-emerald-400 truncate">Hash: ${hash}</div>
+            `;
+            container.prepend(item);
+        }
+
+        /**
+         * Copies current telemetry SHA-256 hash to clipboard
+         */
+        function copyAuditHash() {
+            const currentHash = document.getElementById('live-sha256-hash').innerText;
+            const dummy = document.createElement('textarea');
+            document.body.appendChild(dummy);
+            dummy.value = currentHash;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            alertCustom("คัดลอก Cryptographic Hash เรียบร้อยแล้ว!");
+        }
+
+        /**
+         * Displays custom toast notification banner
+         */
+        function alertCustom(msg) {
+            const toast = document.createElement('div');
+            toast.className = "fixed bottom-5 right-5 bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-xl shadow-2xl z-50 transition-all transform translate-y-2";
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
